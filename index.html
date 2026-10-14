@@ -2,33 +2,127 @@
 <html lang="uz">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#111111">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f5c400">
 <title>JAMOL SAFE</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#111;color:#fff;font-family:Arial,sans-serif}
-header{text-align:center;padding:35px 15px 25px;background:#171717;border-bottom:1px solid #a98532}
-.logo{font-size:48px;color:#e5bd58}
-h1{letter-spacing:3px;margin:8px 0;color:#e5bd58}
-p{color:#bbb}
-main{padding:20px;max-width:480px;margin:auto}
-.note{text-align:center;font-size:14px;line-height:1.6}
-label{display:block;margin:20px 0 8px}
-input{width:100%;padding:14px;border-radius:10px;border:1px solid #9d7b32;background:#222;color:white;font-size:18px}
-button{width:100%;padding:15px;border:0;border-radius:10px;background:#d8ae45;color:#171717;font-weight:bold;font-size:16px;margin-top:14px}
-footer{text-align:center;color:#888;font-size:12px;padding:25px}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Arial,sans-serif;background:#f3f3f3;color:#171717}
+.card{width:100%;max-width:400px;background:#fff;padding:28px 22px;border-radius:22px;box-shadow:0 8px 30px #0001;text-align:center}
+.logo{width:70px;height:70px;margin:0 auto 15px;border-radius:20px;background:#f5c400;display:flex;align-items:center;justify-content:center;font-size:36px}
+h1{font-size:27px;margin:8px 0}
+p{color:#666;font-size:14px;line-height:1.6}
+h2{font-size:20px;margin-top:25px}
+input{width:100%;padding:15px;margin:8px 0;border:1px solid #ddd;border-radius:12px;font-size:16px}
+button{width:100%;padding:15px;margin-top:12px;border:0;border-radius:12px;background:#f5c400;font-size:16px;font-weight:bold;cursor:pointer}
+.hidden{display:none}
+#message{color:#b00020;font-size:14px}
 </style>
 </head>
 <body>
-<header><div class="logo">🔐</div><h1>JAMOL SAFE</h1><p>Sizning shaxsiy raqamli seyfingiz</p></header>
-<main>
-<p class="note">Rasm, video va MP3 fayllaringiz uchun shaxsiy seyf.</p>
-<label for="pin">Yangi parol yarating</label>
-<input id="pin" type="password" inputmode="numeric" placeholder="Parol kiriting" autocomplete="new-password">
-<button onclick="alert('Bu hozircha boshlang‘ich dizayn. Haqiqiy shifrlangan fayl saqlash funksiyasini keyingi bosqichda qo‘shamiz.')">Davom etish</button>
-<p class="note">Maxfiylik muhim. Fayllarni himoyalash funksiyasi keyingi bosqichda qo‘шилади.</p>
+<main class="card">
+<div class="logo">🔐</div>
+<h1>JAMOL SAFE</h1>
+<p>Sizning shaxsiy raqamli seyfingiz</p>
+
+<section id="setup">
+<h2>Yangi parol yarating</h2>
+<p>Kamida 8 ta belgidan iborat parol tanlang.</p>
+<input id="pass1" type="password" placeholder="Yangi parol" autocomplete="new-password">
+<input id="pass2" type="password" placeholder="Parolni qayta kiriting" autocomplete="new-password">
+<button id="create">Parol yaratish</button>
+</section>
+
+<section id="login" class="hidden">
+<h2>Seyfga kirish</h2>
+<input id="pass3" type="password" placeholder="Parolingiz" autocomplete="current-password">
+<button id="enter">Davom etish</button>
+</section>
+
+<section id="vault" class="hidden">
+<h2>Seyf ochildi!</h2>
+<p>Parol to'g'ri kiritildi.</p>
+<p>Fayllarni himoyalash funksiyasi hali qo'shilmagan.</p>
+<button id="lock">Seyfni qulflash</button>
+</section>
+
+<p id="message" role="status"></p>
+<p>Diqqat: bu versiya fayllarni shifrlab saqlamaydi. Muhim fayllaringizni hozircha joylamang.</p>
 </main>
-<footer>JAMOL SAFE · Birinchi sinov versiyasi</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = "jamol_safe_password_v2";
+
+function show(id) {
+  ["setup","login","vault"].forEach(name =>
+    $(name).classList.toggle("hidden", name !== id)
+  );
+  $("message").textContent = "";
+}
+
+async function hashPassword(password, salt) {
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(password),
+    "PBKDF2", false, ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits({
+    name:"PBKDF2", salt:new TextEncoder().encode(salt),
+    iterations:310000, hash:"SHA-256"
+  }, key, 256);
+  return Array.from(new Uint8Array(bits))
+    .map(n=>n.toString(16).padStart(2,"0")).join("");
+}
+
+$("create").addEventListener("click", async () => {
+  const a = $("pass1").value, b = $("pass2").value;
+  if (a.length < 8) {
+    $("message").textContent = "Parol kamida 8 ta belgidan iborat bo'lsin.";
+    return;
+  }
+  if (a !== b) {
+    $("message").textContent = "Parollar bir xil emas.";
+    return;
+  }
+  try {
+    const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(n=>n.toString(16).padStart(2,"0")).join("");
+    const hash = await hashPassword(a,salt);
+    localStorage.setItem(KEY,JSON.stringify({salt,hash}));
+    $("pass1").value = "";
+    $("pass2").value = "";
+    show("login");
+    $("message").textContent = "Parol yaratildi. Endi parol bilan kiring.";
+  } catch(e) {
+    $("message").textContent = "Xatolik. Sahifani yangilab qayta urinib ko'ring.";
+  }
+});
+
+$("enter").addEventListener("click", async () => {
+  const saved = localStorage.getItem(KEY);
+  if (!saved) {
+    show("setup");
+    $("message").textContent = "Avval yangi parol yarating.";
+    return;
+  }
+  try {
+    const record = JSON.parse(saved);
+    const hash = await hashPassword($("pass3").value,record.salt);
+    if (hash === record.hash) {
+      $("pass3").value = "";
+      show("vault");
+    } else {
+      $("message").textContent = "Parol noto'g'ri. Qayta urinib ko'ring.";
+    }
+  } catch(e) {
+    $("message").textContent = "Xatolik. Qayta urinib ko'ring.";
+  }
+});
+
+$("lock").addEventListener("click",()=>show("login"));
+
+if (localStorage.getItem(KEY)) show("login");
+else show("setup");
+</script>
 </body>
-  </html>
+</html>
