@@ -7,122 +7,332 @@
 <title>JAMOL SAFE</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Arial,sans-serif;background:#f3f3f3;color:#171717}
-.card{width:100%;max-width:400px;background:#fff;padding:28px 22px;border-radius:22px;box-shadow:0 8px 30px #0001;text-align:center}
-.logo{width:70px;height:70px;margin:0 auto 15px;border-radius:20px;background:#f5c400;display:flex;align-items:center;justify-content:center;font-size:36px}
-h1{font-size:27px;margin:8px 0}
-p{color:#666;font-size:14px;line-height:1.6}
-h2{font-size:20px;margin-top:25px}
-input{width:100%;padding:15px;margin:8px 0;border:1px solid #ddd;border-radius:12px;font-size:16px}
-button{width:100%;padding:15px;margin-top:12px;border:0;border-radius:12px;background:#f5c400;font-size:16px;font-weight:bold;cursor:pointer}
-.hidden{display:none}
-#message{color:#b00020;font-size:14px}
+body{margin:0;min-height:100vh;padding:20px;background:#f3f3f3;
+font-family:Arial,sans-serif;color:#171717}
+.card{max-width:460px;margin:20px auto;background:white;padding:24px;
+border-radius:22px;box-shadow:0 8px 30px #0001}
+.logo{width:65px;height:65px;border-radius:18px;background:#f5c400;
+display:grid;place-items:center;font-size:34px;margin:auto}
+h1{text-align:center;font-size:27px;margin:12px 0}
+h2{font-size:20px}
+.intro{text-align:center;color:#666;font-size:14px}
+input{width:100%;padding:14px;margin:8px 0;border:1px solid #ddd;
+border-radius:11px;font-size:16px}
+button{width:100%;padding:14px;margin:7px 0;border:0;border-radius:11px;
+background:#f5c400;font-weight:bold;font-size:15px;cursor:pointer}
+.secondary{background:#eee}
+.hidden{display:none!important}
+.note{font-size:12px;line-height:1.6;color:#666}
+#message{font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.file{padding:12px 0;border-bottom:1px solid #eee}
+.file-name{font-weight:bold;overflow-wrap:anywhere}
+.file-info{font-size:12px;color:#777;margin:5px 0}
+.file button{width:auto;padding:9px 12px;margin-right:5px}
+.status{color:#276738}
 </style>
 </head>
 <body>
 <main class="card">
 <div class="logo">🔐</div>
 <h1>JAMOL SAFE</h1>
-<p>Sizning shaxsiy raqamli seyfingiz</p>
+<p class="intro">Sizning shaxsiy raqamli seyfingiz</p>
 
 <section id="setup">
 <h2>Yangi parol yarating</h2>
-<p>Kamida 8 ta belgidan iborat parol tanlang.</p>
-<input id="pass1" type="password" placeholder="Yangi parol" autocomplete="new-password">
-<input id="pass2" type="password" placeholder="Parolni qayta kiriting" autocomplete="new-password">
+<p class="intro">Kamida 8 ta belgidan iborat parol tanlang.</p>
+<input id="pass1" type="password" placeholder="Yangi parol"
+autocomplete="new-password">
+<input id="pass2" type="password" placeholder="Parolni qayta kiriting"
+autocomplete="new-password">
 <button id="create">Parol yaratish</button>
 </section>
 
 <section id="login" class="hidden">
 <h2>Seyfga kirish</h2>
-<input id="pass3" type="password" placeholder="Parolingiz" autocomplete="current-password">
-<button id="enter">Davom etish</button>
+<input id="pass3" type="password" placeholder="Parolingiz"
+autocomplete="current-password">
+<button id="enter">Seyfni ochish</button>
 </section>
 
 <section id="vault" class="hidden">
-<h2>Seyf ochildi!</h2>
-<p>Parol to'g'ri kiritildi.</p>
-<p>Fayllarni himoyalash funksiyasi hali qo'shilmagan.</p>
-<button id="lock">Seyfni qulflash</button>
+<h2>Seyf ochildi! 🔓</h2>
+<p>Fayllaringiz qurilmangizda shifrlangan holda saqlanadi.</p>
+<button id="pick">📁 Telefonimdan fayl tanlash</button>
+<input id="files" type="file" multiple class="hidden">
+<p class="note">Tanlangan fayllar seyfga shifrlangan holda saqlanади.</p>
+<h2>Mening fayllarim</h2>
+<div id="fileList">Fayllar tekshirilmoqda...</div>
+<button id="lock" class="secondary">🔒 Seyfni qulflash</button>
 </section>
 
 <p id="message" role="status"></p>
-<p>Diqqat: bu versiya fayllarni shifrlab saqlamaydi. Muhim fayllaringizni hozircha joylamang.</p>
+<p class="note">Fayllar ushbu braузerнинг маҳаллий хотирасида сақланади.
+Браузер маълумотларини тозалаш файлларни йўқотиши мумкин.
+Паролни унутманг: уни тиклаш хизмати мавжуд эмас.</p>
 </main>
 
 <script>
 const $ = id => document.getElementById(id);
 const KEY = "jamol_safe_password_v2";
+const DB = "jamol_safe_encrypted_files";
+let cryptoKey = null;
+let busy = false;
+
+function say(text, good=false) {
+  $("message").textContent = text;
+  $("message").className = good ? "status" : "";
+}
 
 function show(id) {
   ["setup","login","vault"].forEach(name =>
     $(name).classList.toggle("hidden", name !== id)
   );
-  $("message").textContent = "";
+  say("");
 }
 
-async function hashPassword(password, salt) {
-  const key = await crypto.subtle.importKey(
+function randomSalt() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(n=>n.toString(16).padStart(2,"0")).join("");
+}
+
+async function deriveBits(password, salt) {
+  const material = await crypto.subtle.importKey(
     "raw", new TextEncoder().encode(password),
     "PBKDF2", false, ["deriveBits"]
   );
-  const bits = await crypto.subtle.deriveBits({
-    name:"PBKDF2", salt:new TextEncoder().encode(salt),
-    iterations:310000, hash:"SHA-256"
-  }, key, 256);
+  return crypto.subtle.deriveBits({
+    name:"PBKDF2",
+    salt:new TextEncoder().encode(salt),
+    iterations:310000,
+    hash:"SHA-256"
+  }, material, 256);
+}
+
+async function hashPassword(password, salt) {
+  const bits = await deriveBits(password, salt);
   return Array.from(new Uint8Array(bits))
     .map(n=>n.toString(16).padStart(2,"0")).join("");
 }
 
-$("create").addEventListener("click", async () => {
-  const a = $("pass1").value, b = $("pass2").value;
-  if (a.length < 8) {
-    $("message").textContent = "Parol kamida 8 ta belgidan iborat bo'lsin.";
-    return;
-  }
-  if (a !== b) {
-    $("message").textContent = "Parollar bir xil emas.";
-    return;
-  }
+async function deriveFileKey(password, salt) {
+  const material = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(password),
+    "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey({
+    name:"PBKDF2",
+    salt:new TextEncoder().encode(salt),
+    iterations:310000,
+    hash:"SHA-256"
+  }, material, {name:"AES-GCM",length:256}, false,
+  ["encrypt","decrypt"]);
+}
+
+function openDB() {
+  return new Promise((resolve,reject) => {
+    const request = indexedDB.open(DB,1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("files")) {
+        db.createObjectStore("files",{keyPath:"id",autoIncrement:true});
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function storeFile(record) {
+  const db = await openDB();
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction("files","readwrite");
+    tx.objectStore("files").add(record);
+    tx.oncomplete = () => {db.close();resolve();};
+    tx.onerror = () => {db.close();reject(tx.error);};
+  });
+}
+
+async function getFiles() {
+  const db = await openDB();
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction("files","readonly");
+    const req = tx.objectStore("files").getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function deleteFile(id) {
+  const db = await openDB();
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction("files","readwrite");
+    tx.objectStore("files").delete(id);
+    tx.oncomplete = () => {db.close();resolve();};
+    tx.onerror = () => {db.close();reject(tx.error);};
+  });
+}
+
+function readableSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1048576) return (bytes/1024).toFixed(1)+" KB";
+  return (bytes/1048576).toFixed(1)+" MB";
+}
+
+$("create").onclick = async () => {
+  const a = $("pass1").value;
+  const b = $("pass2").value;
+  if (a.length < 8) return say("Parol kamida 8 ta belgidan iborat bo'lsin.");
+  if (a !== b) return say("Parollar bir xil emas.");
+  $("create").disabled = true;
   try {
-    const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map(n=>n.toString(16).padStart(2,"0")).join("");
+    const salt = randomSalt();
     const hash = await hashPassword(a,salt);
     localStorage.setItem(KEY,JSON.stringify({salt,hash}));
     $("pass1").value = "";
     $("pass2").value = "";
     show("login");
-    $("message").textContent = "Parol yaratildi. Endi parol bilan kiring.";
+    say("Parol yaratildi. Endi parol bilan kiring.",true);
   } catch(e) {
-    $("message").textContent = "Xatolik. Sahifani yangilab qayta urinib ko'ring.";
+    say("Xatolik yuz berdi. HTTPS orqali ochilganini tekshiring.");
+  } finally {
+    $("create").disabled = false;
   }
-});
+};
 
-$("enter").addEventListener("click", async () => {
+$("enter").onclick = async () => {
+  if (busy) return;
+  const password = $("pass3").value;
+  if (!password) return say("Parolingizni kiriting.");
   const saved = localStorage.getItem(KEY);
   if (!saved) {
     show("setup");
-    $("message").textContent = "Avval yangi parol yarating.";
-    return;
+    return say("Avval yangi parol yarating.");
   }
+  busy = true;
+  $("enter").disabled = true;
   try {
     const record = JSON.parse(saved);
-    const hash = await hashPassword($("pass3").value,record.salt);
-    if (hash === record.hash) {
-      $("pass3").value = "";
-      show("vault");
-    } else {
-      $("message").textContent = "Parol noto'g'ri. Qayta urinib ko'ring.";
-    }
+    const hash = await hashPassword(password,record.salt);
+    if (hash !== record.hash) return say("Parol noto'g'ri.");
+    cryptoKey = await deriveFileKey(password,record.salt);
+    $("pass3").value = "";
+    show("vault");
+    await renderFiles();
   } catch(e) {
-    $("message").textContent = "Xatolik. Qayta urinib ko'ring.";
+    say("Xatolik yuz berdi. Qayta urinib ko'ring.");
+  } finally {
+    busy = false;
+    $("enter").disabled = false;
   }
-});
+};
 
-$("lock").addEventListener("click",()=>show("login"));
+$("pick").onclick = () => $("files").click();
 
-if (localStorage.getItem(KEY)) show("login");
-else show("setup");
+$("files").onchange = async () => {
+  if (!cryptoKey) return say("Avval seyfni oching.");
+  const selected = Array.from($("files").files || []);
+  if (!selected.length) return;
+  $("pick").disabled = true;
+  let saved = 0;
+  try {
+    for (const file of selected) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const plain = await file.arrayBuffer();
+      const encrypted = await crypto.subtle.encrypt(
+        {name:"AES-GCM",iv},cryptoKey,plain
+      );
+      await storeFile({
+        name:file.name,
+        type:file.type || "application/octet-stream",
+        size:file.size,
+        iv:Array.from(iv),
+        data:encrypted,
+        created:Date.now()
+      });
+      saved++;
+    }
+    say(saved+" ta fayl shifrlanib saqlandi.",true);
+    await renderFiles();
+  } catch(e) {
+    say("Saqlashda xatolik. Xotira yetarli ekanini tekshiring.");
+  } finally {
+    $("files").value = "";
+    $("pick").disabled = false;
+  }
+};
+
+async function renderFiles() {
+  const list = $("fileList");
+  list.textContent = "";
+  const files = await getFiles();
+  if (!files.length) {
+    list.textContent = "Hozircha fayllar yo'q.";
+    return;
+  }
+  for (const file of files) {
+    const item = document.createElement("div");
+    item.className = "file";
+    const name = document.createElement("div");
+    name.className = "file-name";
+    name.textContent = "🔒 " + file.name;
+    const info = document.createElement("div");
+    info.className = "file-info";
+    info.textContent = readableSize(file.size);
+    const download = document.createElement("button");
+    download.textContent = "Ochish / saqlash";
+    download.onclick = () => downloadFile(file);
+    const remove = document.createElement("button");
+    remove.textContent = "O'chirish";
+    remove.className = "secondary";
+    remove.onclick = async () => {
+      if (!confirm("Ushbu faylni butunlay o'chirasizmi?")) return;
+      try {
+        await deleteFile(file.id);
+        await renderFiles();
+        say("Fayl o'chirildi.",true);
+      } catch(e) { say("Faylni o'chirib bo'lmadi."); }
+    };
+    item.append(name,info,download,remove);
+    list.appendChild(item);
+  }
+}
+
+async function downloadFile(file) {
+  if (!cryptoKey) return say("Seyf qulflangan.");
+  try {
+    const plain = await crypto.subtle.decrypt(
+      {name:"AES-GCM",iv:new Uint8Array(file.iv)},
+      cryptoKey,file.data
+    );
+    const blob = new Blob([plain],{type:file.type});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    say("Fayl ochildi yoki yuklab olish boshlandi.",true);
+  } catch(e) {
+    say("Faylni ochib bo'lmadi.");
+  }
+}
+
+$("lock").onclick = () => {
+  cryptoKey = null;
+  show("login");
+  say("Seyf qulflandi.",true);
+};
+
+if (!window.crypto || !crypto.subtle || !window.indexedDB) {
+  say("Brauzer xavfsiz shifrlashni qo'llamaydi. Chrome orqali HTTPS havolasini oching.");
+} else if (localStorage.getItem(KEY)) {
+  show("login");
+} else {
+  show("setup");
+}
 </script>
 </body>
 </html>
