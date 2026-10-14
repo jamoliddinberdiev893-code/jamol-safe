@@ -36,7 +36,6 @@ steps:
     run: |
       mkdir -p app/src/main/java/com/jamol/safe
       mkdir -p app/src/main/assets
-
       cp index.html app/src/main/assets/index.html
 
       cat > settings.gradle <<'EOF'
@@ -87,8 +86,7 @@ steps:
       <manifest xmlns:android="http://schemas.android.com/apk/res/android">
           <application
               android:theme="@android:style/Theme.Material.Light.NoActionBar"
-              android:label="JAMOL SAFE"
-              android:usesCleartextTraffic="false">
+              android:label="JAMOL SAFE">
               <activity
                   android:name=".MainActivity"
                   android:exported="true">
@@ -114,20 +112,13 @@ steps:
           @Override
           protected void onCreate(Bundle savedInstanceState) {
               super.onCreate(savedInstanceState);
-
               WebView webView = new WebView(this);
               WebSettings settings = webView.getSettings();
               settings.setJavaScriptEnabled(true);
               settings.setDomStorageEnabled(true);
-
               webView.setWebViewClient(new WebViewClient());
               setContentView(webView);
               webView.loadUrl("file:///android_asset/index.html");
-          }
-
-          @Override
-          public void onBackPressed() {
-              super.onBackPressed();
           }
       }
       EOF
